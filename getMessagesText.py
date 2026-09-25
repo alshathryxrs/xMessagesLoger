@@ -319,10 +319,10 @@ class XChatEngine:
         await page.add_init_script(SPOOF_JS)
 
         url = f"https://x.com/i/chat/{self.account.user_id}-{target_uid}"
-        await page.goto(url, wait_until="load", timeout=60000)
+        await page.goto(url, wait_until="load", timeout=90000)
 
         try:
-            await page.wait_for_selector("input[inputmode='numeric']", timeout=8000)
+            await page.wait_for_selector("input[inputmode='numeric']", timeout=12000)
             for digit in PASSCODE:
                 await page.keyboard.type(digit)
                 await asyncio.sleep(0.15)
@@ -330,7 +330,7 @@ class XChatEngine:
         except Exception:
             pass
 
-        await page.wait_for_selector("[data-testid='dm-composer-textarea']", timeout=30000)
+        await page.wait_for_selector("[data-testid='dm-composer-textarea']", timeout=60000)
         self.pages[name] = page
         logger.info(f"✅ [{self.account.label}] {name} tab ready")
 
@@ -339,10 +339,17 @@ class XChatEngine:
         self.ctx = await self.pw.chromium.launch_persistent_context(
             user_data_dir=self.account.user_data,
             headless=True,
-            args=["--no-sandbox", "--disable-blink-features=AutomationControlled",
-                  "--window-size=1400,900", "--log-level=3"],
+            args=[
+                "--no-sandbox",
+                "--disable-blink-features=AutomationControlled",
+                "--disable-dev-shm-usage",   # critical on Railway — avoids /dev/shm crash
+                "--disable-gpu",
+                "--single-process",          # lower memory footprint per browser
+                "--window-size=1280,800",
+                "--log-level=3",
+            ],
             user_agent=USER_AGENT,
-            viewport={"width": 1400, "height": 900},
+            viewport={"width": 1280, "height": 800},
         )
         if self.ctx.pages:
             await self.ctx.pages[0].close()
@@ -381,6 +388,9 @@ class BotOrchestrator:
         await e1._open_tab("jamila_acc1",  JAMILA_USER_ID)
         e1.ready = True
         self.engines["acc1"] = e1
+
+        # Wait for Acc1 to fully settle before starting Acc2
+        await asyncio.sleep(5)
 
         # Engine for Account 2 — watches Jamila only
         e2 = XChatEngine(ACCOUNT2, pw)

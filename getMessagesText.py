@@ -124,8 +124,11 @@ class TelegramService:
         ts     = data.get("time") or datetime.now().strftime("%I:%M %p")
 
         if text:
-            formatted = f"🕒 *{ts}*\n───────────────────\n👤 *{label}*\n\n{text}"
-            await self.send_text(formatted, with_menu=False)
+            await self._post("sendMessage", json={
+                "chat_id":    TELEGRAM_CHAT_ID,
+                "text":       f"*{label} {ts}*\n{text}",
+                "parse_mode": "Markdown",
+            })
 
         for b64 in images:
             if "," in b64:

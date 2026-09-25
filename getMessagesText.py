@@ -124,9 +124,10 @@ class TelegramService:
         ts     = data.get("time") or datetime.now().strftime("%I:%M %p")
 
         if text:
+            name = label.split(" ")[0]  # "Jamila" not "Jamila (ACC2)"
             await self._post("sendMessage", json={
                 "chat_id":    TELEGRAM_CHAT_ID,
-                "text":       f"*{label} {ts}*\n{text}",
+                "text":       f"*{name} {ts}*\n\n{text}",
                 "parse_mode": "Markdown",
             })
 

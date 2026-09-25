@@ -37,9 +37,9 @@ ACCOUNT2 = AccountConfig(
     label      = "Acc2",
 )
 
-NOORA_USER_ID    = "2082060317358743552"
-JAMILA_USER_ID   = "2024978767081254912"
-CUSTOM_TARGET_ID = "REPLACE_WITH_CUSTOM_USER_ID" # <--- ADD YOUR CUSTOM ID HERE
+NOORA_USER_ID  = "2082060317358743552"
+JAMILA_USER_ID = "2024978767081254912"
+CUSTOM_USER_ID = "REPLACE_WITH_YOUR_CUSTOM_TARGET_ID"  # Add your custom ID here
 
 TELEGRAM_TOKEN   = "8630469503:AAHqID7tpgZ49_p_DgfIIhgt5CkBPO_MkQo"
 TELEGRAM_CHAT_ID = 6607397366
@@ -189,7 +189,7 @@ class TelegramService:
 
 
 # ==========================================
-# 4. BROWSER ENGINE (one per account)
+# 4. BROWSER ENGINE
 # ==========================================
 SPOOF_JS = """
 Object.defineProperty(document, 'visibilityState', { get: () => 'hidden' });
@@ -335,9 +335,14 @@ class XChatEngine:
         except Exception:
             pass
 
-        await page.wait_for_selector("[data-testid='dm-composer-textarea']", timeout=30000)
-        self.pages[name] = page
-        logger.info(f"✅ [{self.account.label}] {name} tab ready")
+        try:
+            await page.wait_for_selector("[data-testid='dm-composer-textarea']", timeout=30000)
+            self.pages[name] = page
+            logger.info(f"✅ [{self.account.label}] {name} tab ready")
+        except Exception as e:
+            logger.error(f"❌ Timeout waiting for {name}. Taking error screenshot...")
+            await page.screenshot(path=f"error_{self.account.label}_{name}.png")
+            raise e
 
     async def start(self) -> None:
         logger.info(f"🚀 [{self.account.label}] Starting browser...")
@@ -382,17 +387,27 @@ class BotOrchestrator:
         # Engine for Account 1 
         e1 = XChatEngine(ACCOUNT1, pw)
         await e1.start()
-        await e1._open_tab("noora",        NOORA_USER_ID)
-        await e1._open_tab("jamila_acc1",  JAMILA_USER_ID)
-        await e1._open_tab("custom_acc1",  CUSTOM_TARGET_ID)
+        
+        await e1._open_tab("noora", NOORA_USER_ID)
+        await asyncio.sleep(7)  # Delay to prevent memory spikes and rate limiting
+        
+        await e1._open_tab("jamila_acc1", JAMILA_USER_ID)
+        await asyncio.sleep(7)
+        
+        await e1._open_tab("custom_acc1", CUSTOM_USER_ID)
+        await asyncio.sleep(7)
+        
         e1.ready = True
         self.engines["acc1"] = e1
 
         # Engine for Account 2 
         e2 = XChatEngine(ACCOUNT2, pw)
         await e2.start()
-        await e2._open_tab("jamila_acc2",  JAMILA_USER_ID)
-        await e2._open_tab("custom_acc2",  CUSTOM_TARGET_ID)
+        
+        await e2._open_tab("jamila_acc2", JAMILA_USER_ID)
+        await asyncio.sleep(7)
+        
+        await e2._open_tab("custom_acc2", CUSTOM_USER_ID)
         e2.ready = True
         self.engines["acc2"] = e2
 
@@ -412,7 +427,7 @@ class BotOrchestrator:
             name   = parts[0]                  
             acct   = parts[1] if len(parts) > 1 else "acc1"
             engine = self.engines.get(acct)
-            tab    = "noora" if name == "noora" else f"{name}_{acct}"
+            tab    = f"{name}_{acct}" if name != "noora" else "noora"
             label  = f"{name.capitalize()} ({acct.upper()})"
             logger.info(f"Fetching {label}...")
 
@@ -433,7 +448,7 @@ class BotOrchestrator:
             name   = parts[0]
             acct   = parts[1] if len(parts) > 1 else "acc1"
             engine = self.engines.get(acct)
-            tab    = "noora" if name == "noora" else f"{name}_{acct}"
+            tab    = f"{name}_{acct}" if name != "noora" else "noora"
             label  = f"{name.capitalize()} ({acct.upper()})"
             logger.info(f"Screenshot {label}...")
             try:

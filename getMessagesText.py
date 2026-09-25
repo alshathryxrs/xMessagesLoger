@@ -26,20 +26,19 @@ ACCOUNT1 = AccountConfig(
     user_id    = "704772337",
     auth_token = "000109a238c22edaed3918aacb3d8c0a4360d480",
     ct0        = "6fd94ab6e318068f4e34c27c07d5b055541c8447ddc43e14d8ac0cedbe02a6efb5060c89092b47d6e071e61aca37496f44886a1c141abc20bb5aec817f214dcd2fbc7f22f39372ab5a8664ecb553f439",
-    user_data  = "./browser_data_acc1",
+    user_data  = "/tmp/browser_data_acc1",
     label      = "Acc1",
 )
 ACCOUNT2 = AccountConfig(
     user_id    = "2050569848002957312",
     auth_token = "52374ce131bffe2766c9878c792f5e0074a200a1",
     ct0        = "e0c6dab0995fa9426c647337b5b16678b75852d196a688526489efcfe924ed5cb288e87d5b43562e529f33af770670115413b85aa4f7f3b0f9edec945ab7f62811b4fafb8125de79722be7d8dc7e9e4c",
-    user_data  = "./browser_data_acc2",
+    user_data  = "/tmp/browser_data_acc2",
     label      = "Acc2",
 )
 
 NOORA_USER_ID  = "2082060317358743552"
 JAMILA_USER_ID = "2024978767081254912"
-CUSTOM_USER_ID = "REPLACE_WITH_YOUR_CUSTOM_TARGET_ID"  # Add your custom ID here
 
 TELEGRAM_TOKEN   = "8630469503:AAHqID7tpgZ49_p_DgfIIhgt5CkBPO_MkQo"
 TELEGRAM_CHAT_ID = 6607397366
@@ -93,14 +92,6 @@ class TelegramService:
                 [
                     {"text": "📬 Jamila (Acc2)",  "callback_data": "check_jamila_acc2"},
                     {"text": "📸 Jamila (Acc2)",  "callback_data": "screen_jamila_acc2"},
-                ],
-                [
-                    {"text": "📬 Custom (Acc1)",  "callback_data": "check_custom_acc1"},
-                    {"text": "📸 Custom (Acc1)",  "callback_data": "screen_custom_acc1"},
-                ],
-                [
-                    {"text": "📬 Custom (Acc2)",  "callback_data": "check_custom_acc2"},
-                    {"text": "📸 Custom (Acc2)",  "callback_data": "screen_custom_acc2"},
                 ],
                 [
                     {"text": "⚙️ Status", "callback_data": "status"},
@@ -189,7 +180,7 @@ class TelegramService:
 
 
 # ==========================================
-# 4. BROWSER ENGINE
+# 4. BROWSER ENGINE (one per account)
 # ==========================================
 SPOOF_JS = """
 Object.defineProperty(document, 'visibilityState', { get: () => 'hidden' });
@@ -205,6 +196,7 @@ WebSocket.prototype.send = function(data) {
 };
 """
 
+# Optimized Javascript Extractor
 EXTRACTOR_JS = """
 async () => {
     async function blobToBase64(url) {
@@ -251,6 +243,7 @@ async () => {
         const testId = container.getAttribute('data-testid');
         if (!/^message-[0-9a-f]{8}-/.test(testId)) continue;
 
+        // Skip outgoing
         if (container.classList.contains('justify-end')) {
             if (!window.processedMap.has(testId)) window.processedMap.set(testId, { t: 'OUT', i: 999 });
             continue;
@@ -272,6 +265,7 @@ async () => {
             !img.src.includes('emoji') && !img.src.includes('twemoji') && !img.src.includes('profile_images')
         );
 
+        // Skip immediately if nothing new
         if (cleanText === prev.t && validImgs.length <= prev.i) {
             continue;
         }
@@ -279,6 +273,7 @@ async () => {
         const textToSend = (cleanText && cleanText !== prev.t) ? cleanText : '';
         const imagesToSend = [];
 
+        // Load new images only
         for (let idx = prev.i; idx < validImgs.length; idx++) {
             const b64 = await blobToBase64(validImgs[idx].src);
             if (b64) imagesToSend.push(b64);
@@ -335,14 +330,9 @@ class XChatEngine:
         except Exception:
             pass
 
-        try:
-            await page.wait_for_selector("[data-testid='dm-composer-textarea']", timeout=30000)
-            self.pages[name] = page
-            logger.info(f"✅ [{self.account.label}] {name} tab ready")
-        except Exception as e:
-            logger.error(f"❌ Timeout waiting for {name}. Taking error screenshot...")
-            await page.screenshot(path=f"error_{self.account.label}_{name}.png")
-            raise e
+        await page.wait_for_selector("[data-testid='dm-composer-textarea']", timeout=30000)
+        self.pages[name] = page
+        logger.info(f"✅ [{self.account.label}] {name} tab ready")
 
     async def start(self) -> None:
         logger.info(f"🚀 [{self.account.label}] Starting browser...")
@@ -384,30 +374,18 @@ class BotOrchestrator:
         self.ready    = False
 
     async def start_engines(self, pw) -> None:
-        # Engine for Account 1 
+        # Engine for Account 1 — watches Noora + Jamila
         e1 = XChatEngine(ACCOUNT1, pw)
         await e1.start()
-        
-        await e1._open_tab("noora", NOORA_USER_ID)
-        await asyncio.sleep(7)  # Delay to prevent memory spikes and rate limiting
-        
-        await e1._open_tab("jamila_acc1", JAMILA_USER_ID)
-        await asyncio.sleep(7)
-        
-        await e1._open_tab("custom_acc1", CUSTOM_USER_ID)
-        await asyncio.sleep(7)
-        
+        await e1._open_tab("noora",        NOORA_USER_ID)
+        await e1._open_tab("jamila_acc1",  JAMILA_USER_ID)
         e1.ready = True
         self.engines["acc1"] = e1
 
-        # Engine for Account 2 
+        # Engine for Account 2 — watches Jamila only
         e2 = XChatEngine(ACCOUNT2, pw)
         await e2.start()
-        
-        await e2._open_tab("jamila_acc2", JAMILA_USER_ID)
-        await asyncio.sleep(7)
-        
-        await e2._open_tab("custom_acc2", CUSTOM_USER_ID)
+        await e2._open_tab("jamila_acc2",  JAMILA_USER_ID)
         e2.ready = True
         self.engines["acc2"] = e2
 
@@ -422,9 +400,10 @@ class BotOrchestrator:
             await self.telegram.send_text("⏳ *Still booting. Please wait.*", with_menu=False)
             return
 
+        # /check_noora_acc1  /check_jamila_acc1  /check_jamila_acc2
         if command.startswith("/check_"):
-            parts  = command[7:].split("_")   
-            name   = parts[0]                  
+            parts  = command[7:].split("_")   # ["noora","acc1"] or ["jamila","acc1"]
+            name   = parts[0]                  # noora / jamila
             acct   = parts[1] if len(parts) > 1 else "acc1"
             engine = self.engines.get(acct)
             tab    = f"{name}_{acct}" if name != "noora" else "noora"

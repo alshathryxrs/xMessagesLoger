@@ -1,14 +1,14 @@
-# Use the official Microsoft Playwright image (includes all browser dependencies)
-FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy
+# Official Playwright Python image — has Chromium + all deps pre-installed
+FROM mcr.microsoft.com/playwright/python:v1.49.0-noble
 
 WORKDIR /app
 
-# Copy your python script into the container
-COPY getMessagesText.py .
+COPY requirements.txt .
+RUN pip install -r requirements.txt --no-cache-dir
 
-# Install required Python packages
-RUN pip install --no-cache-dir playwright httpx
+# Install Playwright browsers
 RUN playwright install chromium
 
-# Run the bot
-CMD ["python", "getMessagesText.py"]
+COPY getMessagesText.py .
+
+CMD ["python", "-u", "getMessagesText.py"]

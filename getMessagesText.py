@@ -82,14 +82,6 @@ class TelegramService:
         return {
             "inline_keyboard": [
                 [
-                    {"text": "📬 Noora (Acc1)",   "callback_data": "check_noora_acc1"},
-                    {"text": "📸 Noora (Acc1)",   "callback_data": "screen_noora_acc1"},
-                ],
-                [
-                    {"text": "📬 Jamila (Acc1)",  "callback_data": "check_jamila_acc1"},
-                    {"text": "📸 Jamila (Acc1)",  "callback_data": "screen_jamila_acc1"},
-                ],
-                [
                     {"text": "📬 Jamila (Acc2)",  "callback_data": "check_jamila_acc2"},
                     {"text": "📸 Jamila (Acc2)",  "callback_data": "screen_jamila_acc2"},
                 ],
@@ -381,21 +373,10 @@ class BotOrchestrator:
         self.ready    = False
 
     async def start_engines(self, pw) -> None:
-        # Engine for Account 1 — watches Noora + Jamila
-        e1 = XChatEngine(ACCOUNT1, pw)
-        await e1.start()
-        await e1._open_tab("noora",        NOORA_USER_ID)
-        await e1._open_tab("jamila_acc1",  JAMILA_USER_ID)
-        e1.ready = True
-        self.engines["acc1"] = e1
-
-        # Wait for Acc1 to fully settle before starting Acc2
-        await asyncio.sleep(5)
-
         # Engine for Account 2 — watches Jamila only
         e2 = XChatEngine(ACCOUNT2, pw)
         await e2.start()
-        await e2._open_tab("jamila_acc2",  JAMILA_USER_ID)
+        await e2._open_tab("jamila_acc2", JAMILA_USER_ID)
         e2.ready = True
         self.engines["acc2"] = e2
 
@@ -412,11 +393,11 @@ class BotOrchestrator:
 
         # /check_noora_acc1  /check_jamila_acc1  /check_jamila_acc2
         if command.startswith("/check_"):
-            parts  = command[7:].split("_")   # ["noora","acc1"] or ["jamila","acc1"]
-            name   = parts[0]                  # noora / jamila
-            acct   = parts[1] if len(parts) > 1 else "acc1"
+            parts  = command[7:].split("_")
+            name   = parts[0]
+            acct   = parts[1] if len(parts) > 1 else "acc2"
             engine = self.engines.get(acct)
-            tab    = f"{name}_{acct}" if name != "noora" else "noora"
+            tab    = f"{name}_{acct}"
             label  = f"{name.capitalize()} ({acct.upper()})"
             logger.info(f"Fetching {label}...")
 
@@ -435,9 +416,9 @@ class BotOrchestrator:
         elif command.startswith("/screen_"):
             parts  = command[8:].split("_")
             name   = parts[0]
-            acct   = parts[1] if len(parts) > 1 else "acc1"
+            acct   = parts[1] if len(parts) > 1 else "acc2"
             engine = self.engines.get(acct)
-            tab    = f"{name}_{acct}" if name != "noora" else "noora"
+            tab    = f"{name}_{acct}"
             label  = f"{name.capitalize()} ({acct.upper()})"
             logger.info(f"Screenshot {label}...")
             try:
@@ -446,9 +427,41 @@ class BotOrchestrator:
             except Exception as e:
                 await self.telegram.send_text(f"❌ Screenshot failed: {e}")
 
+        elif command.startswith("/open "):
+            # /open <user_id> [acc1|acc2]
+            # Example: /open 2082060317358743552 acc2
+            parts   = command[6:].strip().split()
+            user_id = parts[0] if parts else ""
+            acct    = parts[1] if len(parts) > 1 else "acc2"
+            engine  = self.engines.get(acct)
+
+            if not user_id.isdigit():
+                await self.telegram.send_text("❌ Invalid user ID. Usage: `/open <user_id> [acc1|acc2]`")
+                return
+            if not engine:
+                await self.telegram.send_text(f"❌ No engine for {acct}")
+                return
+
+            tab_name = f"custom_{user_id}_{acct}"
+            if tab_name in engine.pages:
+                await self.telegram.send_text(f"✅ Tab already open for `{user_id}` on {acct.upper()}")
+                return
+
+            await self.telegram.send_text(f"⏳ Opening tab for `{user_id}` on {acct.upper()}...")
+            try:
+                await engine._open_tab(tab_name, user_id)
+                await self.telegram.send_text(
+                    f"✅ Tab ready for `{user_id}` on {acct.upper()}\n"
+                    f"Use `/check_{tab_name}` or `/screen_{tab_name}` to read it.",
+                    with_menu=False,
+                )
+            except Exception as e:
+                await self.telegram.send_text(f"❌ Failed to open tab: {e}")
+
         elif command in ("/status", "/start"):
+            tabs = {acct: list(e.pages.keys()) for acct, e in self.engines.items()}
             await self.telegram.send_text(
-                "🤖 *X-Watcher Online*\n\nAll systems operational. Ghost Mode active.",
+                f"🤖 *X-Watcher Online*\n\nGhost Mode active.\nOpen tabs: `{tabs}`",
             )
 
     async def run(self, shutdown: asyncio.Event) -> None:

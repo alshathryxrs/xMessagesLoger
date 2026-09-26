@@ -6,6 +6,6 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt --no-cache-dir
 RUN playwright install chromium
 
-COPY xMessagesLogger.py .
+COPY getMessagesText.py .
 
 CMD ["python", "-u", "xMessagesLogger.py"]

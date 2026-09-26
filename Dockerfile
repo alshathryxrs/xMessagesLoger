@@ -8,4 +8,4 @@ RUN playwright install chromium
 
 COPY getMessagesText.py .
 
-CMD ["python", "-u", "xMessagesLogger.py"]
+CMD ["python", "-u", "getMessagesText.py"]

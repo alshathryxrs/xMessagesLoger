@@ -6,7 +6,6 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt --no-cache-dir
 RUN playwright install chromium
 
-COPY getMessagesText.py .
+COPY xMessagesLogger.py .
 
-# Increase shared memory — prevents Chromium crash on Railway
-CMD ["python", "-u", "getMessagesText.py"]
+CMD ["python", "-u", "xMessagesLogger.py"]

@@ -29,14 +29,14 @@ ACCOUNT1 = AccountConfig(
     auth_token = "000109a238c22edaed3918aacb3d8c0a4360d480",
     ct0        = "6fd94ab6e318068f4e34c27c07d5b055541c8447ddc43e14d8ac0cedbe02a6efb5060c89092b47d6e071e61aca37496f44886a1c141abc20bb5aec817f214dcd2fbc7f22f39372ab5a8664ecb553f439",
     user_data  = "/tmp/browser_data_acc1",
-    label      = "Acc1",
+    label      = "1",
 )
 ACCOUNT2 = AccountConfig(
     user_id    = "2050569848002957312",
     auth_token = "52374ce131bffe2766c9878c792f5e0074a200a1",
     ct0        = "e0c6dab0995fa9426c647337b5b16678b75852d196a688526489efcfe924ed5cb288e87d5b43562e529f33af770670115413b85aa4f7f3b0f9edec945ab7f62811b4fafb8125de79722be7d8dc7e9e4c",
     user_data  = "/tmp/browser_data_acc2",
-    label      = "Acc2",
+    label      = "2",
 )
 
 TARGET_USER_ID = "1885488902670000129"
@@ -44,7 +44,7 @@ REEM_USER_ID   = "954222428791681025"
 NOORA_USER_ID  = "2082060317358743552"
 JAMILA_USER_ID = "2024978767081254912"
 
-# Unified Bot Token (from xmessagesLoger)
+# Unified Bot Token
 TELEGRAM_TOKEN   = "8630469503:AAGh-gLtUHBONPfT_1-z5oN41LCVnsWqqus"
 TELEGRAM_CHAT_ID = 6607397366
 PASSCODE         = "0807"
@@ -92,8 +92,8 @@ class TelegramService:
         return {
             "inline_keyboard": [
                 [
-                    {"text": "📬 Jamila (Acc2)",  "callback_data": "check_jamila_acc2"},
-                    {"text": "📸 Jamila (Acc2)",  "callback_data": "screen_jamila_acc2"},
+                    {"text": "📬 Jamila 2",  "callback_data": "check_jamila_acc2"},
+                    {"text": "📸 Jamila 2",  "callback_data": "screen_jamila_acc2"},
                 ],
                 [
                     {"text": "⚙️ Status", "callback_data": "status"},
@@ -342,10 +342,10 @@ class XChatEngine:
 
         await page.wait_for_selector("[data-testid='dm-composer-textarea']", timeout=60000)
         self.pages[name] = page
-        logger.info(f"✅ [{self.account.label}] {name} tab ready")
+        logger.info(f"✅ [Acc{self.account.label}] {name} tab ready")
 
     async def start(self) -> None:
-        logger.info(f"🚀 [{self.account.label}] Starting browser...")
+        logger.info(f"🚀 [Acc{self.account.label}] Starting browser...")
         self.ctx = await self.pw.chromium.launch_persistent_context(
             user_data_dir=self.account.user_data,
             headless=True,
@@ -497,7 +497,7 @@ async def on_typing(label: str, key: str, acct_label: str) -> None:
     if not _typing_flags.get(key):
         _typing_flags[key] = True
         if not is_muted(key):
-            asyncio.create_task(send_ntfy(f"{label} ({acct_label}) ⌨️", f"{label} is typing..."))
+            asyncio.create_task(send_ntfy(f"{label} {acct_label} ⌨️", f"{label} is typing..."))
     old = _typing_timers.get(key)
     if old: old.cancel()
     def stop():
@@ -515,7 +515,7 @@ async def handle_frame(buf: bytes, account: AccountConfig) -> None:
             return
         if is_muted(seen["conv_id"]): return
         name = get_label(seen["reader_id"])
-        asyncio.create_task(send_ntfy(f"{name} ({lbl}) 👁️", f"{name} has seen your message!"))
+        asyncio.create_task(send_ntfy(f"{name} {lbl} 👁️", f"{name} has seen your message!"))
         return
 
     msg = try_parse_message(buf)
@@ -527,7 +527,7 @@ async def handle_frame(buf: bytes, account: AccountConfig) -> None:
         if my_id not in msg["conv_id"].split(":"): return
         if is_muted(msg["conv_id"]): return
         name = get_label(sid)
-        asyncio.create_task(send_ntfy(f"{name} ({lbl}) 💬", f"{name} sent you a message!"))
+        asyncio.create_task(send_ntfy(f"{name} {lbl} 💬", f"{name} sent you a message!"))
         return
 
     try:
@@ -573,7 +573,7 @@ async def fetch_ws_url(account: AccountConfig) -> str:
     return f"wss://chat-ws.x.com/ws?token={token}"
 
 async def monitor(account: AccountConfig) -> None:
-    tag     = f"[{account.label}]"
+    tag     = f"[Acc{account.label}]"
     attempt = 0
 
     while True:
@@ -658,7 +658,10 @@ class BotOrchestrator:
             acct   = parts[1] if len(parts) > 1 else "acc2"
             engine = self.engines.get(acct)
             tab    = f"{name}_{acct}"
-            label  = f"{name.capitalize()} ({acct.upper()})"
+            
+            # Format cleanly as "Name 1" or "Name 2"
+            acct_num = acct.replace("acc", "")
+            label  = f"{name.capitalize()} {acct_num}"
             logger.info(f"Fetching {label}...")
 
             if not engine:
@@ -679,7 +682,10 @@ class BotOrchestrator:
             acct   = parts[1] if len(parts) > 1 else "acc2"
             engine = self.engines.get(acct)
             tab    = f"{name}_{acct}"
-            label  = f"{name.capitalize()} ({acct.upper()})"
+            
+            # Format cleanly as "Name 1" or "Name 2"
+            acct_num = acct.replace("acc", "")
+            label  = f"{name.capitalize()} {acct_num}"
             logger.info(f"Screenshot {label}...")
             try:
                 img = await engine.screenshot(tab)
